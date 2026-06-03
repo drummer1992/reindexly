@@ -1,0 +1,20 @@
+# NOTE: package.json "files" (["lib","types"]) is the allowlist that decides
+# what ships. This file mainly exists so npm does NOT fall back to .gitignore
+# (which excludes the generated types/ that we DO want to publish).
+#
+# Do not add `types/` here.
+
+# Tests and type-check fixtures
+test/
+
+# Build config
+tsconfig*.json
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Source control / pack artifacts
+.gitignore
+*.tgz

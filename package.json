@@ -1,0 +1,50 @@
+{
+  "name": "reindexly",
+  "version": "1.0.0",
+  "main": "lib/index.js",
+  "types": "types/index.d.ts",
+  "files": [
+    "lib",
+    "types"
+  ],
+  "scripts": {
+    "test": "mocha",
+    "lint": "eslint lib test --max-warnings 0",
+    "lint:fix": "eslint lib test --fix",
+    "build:types": "tsc -p tsconfig.build.json",
+    "typecheck": "npm run build:types && npm run typecheck:consumer",
+    "typecheck:consumer": "tsc test/types/consumer.ts --noEmit --strict --module commonjs --moduleResolution node10 --esModuleInterop --skipLibCheck --ignoreDeprecations 6.0",
+    "prepublishOnly": "npm run build:types"
+  },
+  "keywords": [
+    "reindex",
+    "reindexing",
+    "zero-downtime",
+    "opensearch",
+    "elasticsearch",
+    "alias",
+    "alias-swap",
+    "index-migration",
+    "mapping-migration",
+    "search-index",
+    "online-reindex",
+    "resumable",
+    "idempotent",
+    "state-machine"
+  ],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "sito": "^1.5.9"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@stylistic/eslint-plugin": "^5.10.0",
+    "eslint": "^10.4.1",
+    "globals": "^17.6.0",
+    "mocha": "^11.7.6",
+    "sinon": "^22.0.0",
+    "typescript": "^6.0.3"
+  }
+}

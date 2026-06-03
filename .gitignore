@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Generated type declarations - rebuilt by `npm run build:types`, regenerated on publish
+/types/
+
+# Pack artifacts
+*.tgz
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store

@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "rootDir": "lib",
+    "declarationDir": "types",
+    "module": "CommonJS",
+    "target": "es2022",
+    "moduleResolution": "node10",
+    "skipLibCheck": true,
+    "ignoreDeprecations": "6.0"
+  },
+  "include": [
+    "lib/**/*.js"
+  ]
+}
