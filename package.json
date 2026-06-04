@@ -32,12 +32,9 @@
     "idempotent",
     "state-machine"
   ],
-  "author": "",
+  "author": "Andrii Varlamov",
   "license": "ISC",
-  "description": "",
-  "dependencies": {
-    "sito": "^1.5.9"
-  },
+  "description": "Resumable, idempotent zero-downtime reindexing for OpenSearch and Elasticsearch",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@stylistic/eslint-plugin": "^5.10.0",

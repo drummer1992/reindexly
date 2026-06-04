@@ -216,7 +216,7 @@ Creates the engine. Each argument must be an instance of the matching base class
 
 #### `reindexer.reindex(config) → Promise<void>`
 
-Runs (or resumes) a reindex. `config`:
+Runs (or resumes) a reindex. You pass the input fields; the engine fills in and persists the `auto` ones as it advances through the stages (these are what you read back from `_getConfig`):
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -227,6 +227,9 @@ Runs (or resumes) a reindex. `config`:
 | `query` | `object` | - | Reindex only a subset. |
 | `painlessScript` | `string` | - | Painless transform applied during `_reindex`. |
 | `pipeline` | `string` | - | Ingest pipeline for the `_reindex`. |
+| `stage` | `string` | auto | Current state-machine stage (one of `Repository.Stage`); a resumed run continues from here. |
+| `taskId` | `string` | auto | Id of the async `_reindex` task, persisted so a resumed run re-attaches instead of re-copying. |
+| `lastSyncedDate` | `string` | auto | ISO timestamp checkpoint; the next catch-up reads source rows changed after it. |
 
 #### `Reindexer.Errors.ReindexingNotResumableError`
 
