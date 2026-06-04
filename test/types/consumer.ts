@@ -28,7 +28,10 @@ async function smoke(): Promise<void> {
 
   const taskId: string = await new FakeApi().reindex(input)
 
-  void [taskId, Repository.Stage.REINDEXING_COMPLETED]
+  // Reindexing must extend InitialReindexing with the progress fields
+  const stored: Repository.Reindexing = { ...input, taskId, stage: 'INDEX_CREATION', lastSyncedDate: '' }
+
+  void [taskId, stored.alias, stored.taskId, stored.stage, stored.lastSyncedDate, Repository.Stage.REINDEXING_COMPLETED]
 }
 
 void smoke
