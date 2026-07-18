@@ -1,16 +1,14 @@
-'use strict'
-
 const DEFAULT_TIMEOUT = 20000
 const DEFAULT_PAUSE = 2500
 
-class TimeoutError extends Error {
+export class TimeoutError extends Error {
 }
 
-const pause = ms => new Promise(resolve => {
+const pause = (ms: number) => new Promise(resolve => {
   setTimeout(resolve, ms)
 })
 
-const doWhilst = async (iteratee, isDone) => {
+export const doWhilst = async <T>(iteratee: () => Promise<T>, isDone: (result: T) => Promise<boolean> | boolean) => {
   let result
 
   while (true) {
@@ -24,7 +22,17 @@ const doWhilst = async (iteratee, isDone) => {
   return result
 }
 
-const waitFor = (probe, isDone, { timeout = DEFAULT_TIMEOUT, pause: pauseMs = DEFAULT_PAUSE, timeoutError } = {}) => {
+type WaitForOptions = {
+  timeout?: number
+  pause?: number
+  timeoutError?: Error | string
+}
+
+export const waitFor = <T>(probe: () => Promise<T>, isDone: (result: T) => Promise<boolean> | boolean, {
+  timeout = DEFAULT_TIMEOUT,
+  pause: pauseMs = DEFAULT_PAUSE,
+  timeoutError,
+}: WaitForOptions = {}): Promise<T | never> => {
   const start = new Date().getTime()
 
   return doWhilst(probe, async result => {
@@ -41,10 +49,7 @@ const waitFor = (probe, isDone, { timeout = DEFAULT_TIMEOUT, pause: pauseMs = DE
     }
 
     await pause(pauseMs)
+
+    return false
   })
 }
-
-exports.pause = pause
-exports.doWhilst = doWhilst
-exports.waitFor = waitFor
-exports.TimeoutError = TimeoutError

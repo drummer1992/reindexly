@@ -1,10 +1,11 @@
-# NOTE: package.json "files" (["lib","types"]) is the allowlist that decides
+# NOTE: package.json "files" (["dist"]) is the allowlist that decides
 # what ships. This file mainly exists so npm does NOT fall back to .gitignore
-# (which excludes the generated types/ that we DO want to publish).
+# (which excludes the generated dist/ that we DO want to publish).
 #
-# Do not add `types/` here.
+# Do not add `dist/` here.
 
-# Tests and type-check fixtures
+# Source and tests
+src/
 test/
 
 # Build config
