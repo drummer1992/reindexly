@@ -1,3 +1,4 @@
 {
-  "spec": "test/*.js"
+  "spec": "test/*.ts",
+  "require": "tsx/cjs"
 }

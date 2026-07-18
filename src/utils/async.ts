@@ -31,7 +31,7 @@ type WaitForOptions = {
 export const waitFor = <T>(probe: () => Promise<T>, isDone: (result: T) => Promise<boolean> | boolean, {
   timeout = DEFAULT_TIMEOUT,
   pause: pauseMs = DEFAULT_PAUSE,
-  timeoutError
+  timeoutError,
 }: WaitForOptions = {}): Promise<T | never> => {
   const start = new Date().getTime()
 

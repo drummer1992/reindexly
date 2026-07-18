@@ -1,5 +1,5 @@
-import Repository from "./repository";
-import assert from "assert";
+import Repository from './repository'
+import assert from 'assert'
 
 export default class Locker {
   constructor(private readonly repository: Repository) {

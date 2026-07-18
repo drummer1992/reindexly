@@ -1,8 +1,8 @@
 # Dependencies
 node_modules/
 
-# Generated type declarations - rebuilt by `npm run build:types`, regenerated on publish
-/types/
+# Build output - rebuilt by `npm run build`, regenerated on publish
+/dist/
 
 # Pack artifacts
 *.tgz

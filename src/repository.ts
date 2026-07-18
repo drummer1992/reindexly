@@ -1,7 +1,7 @@
-import assert from "node:assert";
-import {isDeepStrictEqual} from "node:util";
-import {omitBy, pick} from "./utils/object";
-import {ISODateString, toISOString} from "./utils/date";
+import assert from 'node:assert'
+import { isDeepStrictEqual } from 'node:util'
+import { omitBy, pick } from './utils/object'
+import { ISODateString, toISOString } from './utils/date'
 
 export enum Stage {
   INDEX_CREATION = 'INDEX_CREATION',
@@ -48,7 +48,7 @@ export default abstract class Repository {
       return stored
     }
 
-    const config: Reindexing = {...reindexing, stage: Repository.Stage.INDEX_CREATION}
+    const config: Reindexing = { ...reindexing, stage: Repository.Stage.INDEX_CREATION }
 
     await this._init(config)
 
@@ -66,13 +66,13 @@ export default abstract class Repository {
   public setStage(stage: Stage): Promise<void> {
     assert(Object.values(Repository.Stage).includes(stage), 'Invalid stage')
 
-    return this._update({stage})
+    return this._update({ stage })
   }
 
   public setLastSyncedDate(date: ISODateString | Date, taskId?: string) {
     assert(date, 'date is required')
 
-    return this._update(omitBy({lastSyncedDate: toISOString(date), taskId}))
+    return this._update(omitBy({ lastSyncedDate: toISOString(date), taskId }))
   }
 
   private assertInitialReindexing(reindexing: InitialReindexing): void | never {

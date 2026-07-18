@@ -1,13 +1,18 @@
-'use strict'
+import assert from 'assert'
+import sinon from 'sinon'
+import { IndexApi, Reindexing, Stage } from '../src'
 
-const assert = require('assert')
-const sinon = require('sinon')
-const { IndexApi } = require('../lib')
+class TestIndexApi extends IndexApi {
+  protected _request(): Promise<unknown> {
+    return Promise.reject(new Error('_request not implemented in test'))
+  }
+}
 
 describe('index-api', () => {
-  let api, request
+  let api: TestIndexApi
+  let request: sinon.SinonStub
 
-  const reindexing = {
+  const reindexing: Reindexing = {
     alias         : 'orders',
     source        : 'orders_v1',
     target        : 'orders_v2',
@@ -15,11 +20,13 @@ describe('index-api', () => {
     query         : { term: { country: 'AE' } },
     pipeline      : 'enrich',
     painlessScript: 'ctx._source.x = 1',
+    stage: Stage.INITIAL_REINDEXING,
   }
 
   beforeEach(() => {
-    api = new IndexApi()
-    request = sinon.stub(api, '_request')
+    api = new TestIndexApi()
+    // _request is protected — stubbing it on the instance requires bypassing that at the type level
+    request = sinon.stub(api as unknown as { _request: () => Promise<unknown> }, '_request')
   })
 
   afterEach(() => sinon.restore())
@@ -47,7 +54,7 @@ describe('index-api', () => {
     it('omits the script when no painless script is provided', async () => {
       request.resolves({ task: 'abc' })
 
-      await api.reindex({ ...reindexing, painlessScript: undefined })
+      await api.reindex({ ...reindexing, painlessScript: undefined } as unknown as Reindexing)
 
       assert.strictEqual(request.firstCall.args[2].script, undefined)
     })
@@ -69,7 +76,7 @@ describe('index-api', () => {
     })
 
     it('translates resource_already_exists into IndexAlreadyExistsError', async () => {
-      request.rejects({ body: { error: { type: 'resource_already_exists_exception' } }, message: 'exists' })
+      request.rejects({ body: { error: { type: 'resource_already_exists_exception' } }, message: 'exists', status: 400 })
 
       await assert.rejects(api.createIndex(reindexing), IndexApi.Errors.IndexAlreadyExistsError)
     })
@@ -119,7 +126,7 @@ describe('index-api', () => {
     })
 
     it('translates resource_not_found into ReindexingError', async () => {
-      request.rejects({ body: { error: { type: 'resource_not_found_exception' } }, message: 'gone' })
+      request.rejects({ body: { error: { type: 'resource_not_found_exception' } }, message: 'gone', status: 400 })
 
       await assert.rejects(api.getTask('node:1'), IndexApi.Errors.ReindexingError)
     })

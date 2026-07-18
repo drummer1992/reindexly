@@ -1,4 +1,4 @@
-import {Reindexing} from "./repository";
+import { Reindexing } from './repository'
 
 const assert = require('assert')
 
@@ -17,9 +17,9 @@ export default abstract class PostSynchronizer {
     return syncedCount <= this.ACCEPTABLE_BACKLOG
   }
 
-  sync(reindexing: Reindexing): Promise<number | never> {
+  sync(reindexing: Reindexing): Promise<number> {
     return this._sync(reindexing)
   }
 
-  protected abstract _sync(reindexing: Reindexing): Promise<number | never>
+  protected abstract _sync(reindexing: Reindexing): Promise<number>
 }

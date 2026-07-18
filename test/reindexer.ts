@@ -1,12 +1,12 @@
-'use strict'
-
-const assert = require('assert')
-const sinon = require('sinon')
-const { Reindexer, IndexApi } = require('../lib')
-const { FakeRepository, makeIndexApi, makePostSynchronizer, baseInput, Stage } = require('./helpers/reindex')
+import assert from 'assert'
+import sinon from 'sinon'
+import { Reindexer, IndexApi } from '../src'
+import { FakeRepository, makeIndexApi, makePostSynchronizer, baseInput, Stage } from './helpers/reindex'
 
 describe('reindexer', () => {
-  let repo, indexApi, postSync
+  let repo: FakeRepository
+  let indexApi: ReturnType<typeof makeIndexApi>
+  let postSync: ReturnType<typeof makePostSynchronizer>
 
   const build = () => new Reindexer(repo, indexApi, postSync)
 
@@ -22,7 +22,7 @@ describe('reindexer', () => {
     it('drives a fresh reindex through every stage to COMPLETED', async () => {
       await build().reindex(baseInput())
 
-      assert.strictEqual(repo.state.stage, Stage.REINDEXING_COMPLETED)
+      assert.strictEqual(repo.state?.stage, Stage.REINDEXING_COMPLETED)
       assert.ok(indexApi.createIndex.calledOnce)
       assert.ok(indexApi.reindex.calledOnce)
       assert.ok(indexApi.updateAlias.calledOnce)
@@ -43,7 +43,7 @@ describe('reindexer', () => {
     it('refuses to run and does not release when the lock is held', async () => {
       repo.forceLock('2026-01-01T00:00:00.000Z')
 
-      await assert.rejects(build().reindex(baseInput()), /The reindexer is busy/)
+      await assert.rejects(build().reindex(baseInput()), /Reindexing is already in progress/)
 
       assert.ok(indexApi.createIndex.notCalled)
       assert.strictEqual(repo.acquiredAt, '2026-01-01T00:00:00.000Z')
@@ -54,7 +54,7 @@ describe('reindexer', () => {
 
       await assert.rejects(build().reindex(baseInput()))
 
-      assert.strictEqual(repo.state.stage, Stage.REINDEXING_FAILED)
+      assert.strictEqual(repo.state?.stage, Stage.REINDEXING_FAILED)
       assert.strictEqual(repo.acquiredAt, null)
     })
   })
@@ -65,7 +65,7 @@ describe('reindexer', () => {
 
       await build().reindex(baseInput())
 
-      assert.strictEqual(repo.state.stage, Stage.REINDEXING_COMPLETED)
+      assert.strictEqual(repo.state?.stage, Stage.REINDEXING_COMPLETED)
       assert.ok(indexApi.createIndex.notCalled)
       assert.ok(indexApi.reindex.notCalled)
       assert.ok(indexApi.updateAlias.calledOnce)
@@ -95,7 +95,7 @@ describe('reindexer', () => {
 
         await build().reindex(baseInput())
 
-        assert.strictEqual(repo.state.stage, Stage.REINDEXING_COMPLETED)
+        assert.strictEqual(repo.state?.stage, Stage.REINDEXING_COMPLETED)
         assert.ok(indexApi.createIndex.notCalled)
         assert.ok(indexApi.reindex.notCalled)
       })
@@ -107,7 +107,7 @@ describe('reindexer', () => {
       await build().reindex(baseInput())
 
       assert.ok(indexApi.reindex.calledOnce)
-      assert.strictEqual(repo.state.taskId, 'task-1')
+      assert.strictEqual(repo.state?.taskId, 'task-1')
     })
 
     it('does not re-issue the reindex when a taskId is already stored', async () => {
@@ -121,7 +121,7 @@ describe('reindexer', () => {
 
       assert.ok(indexApi.reindex.notCalled)
       assert.ok(indexApi.getTask.called)
-      assert.strictEqual(repo.state.stage, Stage.REINDEXING_COMPLETED)
+      assert.strictEqual(repo.state?.stage, Stage.REINDEXING_COMPLETED)
     })
 
     it('marks FAILED when the task is lost or finished with failures (ReindexingError)', async () => {
@@ -129,7 +129,7 @@ describe('reindexer', () => {
 
       await assert.rejects(build().reindex(baseInput()), /reindexing task could not be completed/i)
 
-      assert.strictEqual(repo.state.stage, Stage.REINDEXING_FAILED)
+      assert.strictEqual(repo.state?.stage, Stage.REINDEXING_FAILED)
       assert.strictEqual(repo.acquiredAt, null)
     })
   })
@@ -141,7 +141,7 @@ describe('reindexer', () => {
       await build().reindex(baseInput())
 
       assert.ok(indexApi.reindex.calledOnce)
-      assert.strictEqual(repo.state.stage, Stage.REINDEXING_COMPLETED)
+      assert.strictEqual(repo.state?.stage, Stage.REINDEXING_COMPLETED)
     })
 
     it('wraps a createIndex failure as non-resumable and marks FAILED', async () => {
@@ -149,7 +149,7 @@ describe('reindexer', () => {
 
       await assert.rejects(build().reindex(baseInput()), /Can not create the destination index/)
 
-      assert.strictEqual(repo.state.stage, Stage.REINDEXING_FAILED)
+      assert.strictEqual(repo.state?.stage, Stage.REINDEXING_FAILED)
     })
   })
 
@@ -157,7 +157,7 @@ describe('reindexer', () => {
     it('loops until a sync indexes <= the acceptable backlog', async () => {
       const counts = [600, 600, 100] // 2 iterations above the 500-doc threshold, then a final one within it
 
-      postSync = makePostSynchronizer(() => Promise.resolve(counts.shift()))
+      postSync = makePostSynchronizer(() => Promise.resolve(counts.shift() as number))
 
       await build().reindex(baseInput())
 
@@ -177,7 +177,7 @@ describe('reindexer', () => {
 
       await assert.rejects(build().reindex(baseInput()), /Alias was not updated/)
 
-      assert.strictEqual(repo.state.stage, Stage.ALIAS_UPDATE)
+      assert.strictEqual(repo.state?.stage, Stage.ALIAS_UPDATE)
       assert.strictEqual(repo.acquiredAt, null)
     })
   })

@@ -1,5 +1,5 @@
-import {Reindexing} from "./repository";
-import assert from "assert";
+import { Reindexing } from './repository'
+import assert from 'assert'
 
 export type HttpMethod = 'get' | 'post' | 'put'
 
@@ -31,18 +31,21 @@ export type ReindexingResponse = {
   task: string
 }
 
-type IndexResponseError = {
+export type IndexResponseError = {
   message: any
   status: number
   body: any
 }
 
-const toIndexResponseError = (err: unknown): IndexResponseError => {
+const toIndexResponseError = (err: unknown): IndexResponseError | never => {
   const error = err as IndexResponseError
 
-  assert(error.message, 'No message in the error')
-  assert(error.status, 'No status in the error')
-  assert(error.body, 'No body in the error')
+  if (!error.message || !error.status || !error.body) {
+    throw new Error(
+      'Unexpected index api response error format. Please make sure it matches the IndexResponseError type. '
+      + JSON.stringify((err as Error).stack),
+    )
+  }
 
   return error
 }
@@ -66,9 +69,9 @@ export default abstract class IndexApi {
   public async reindex(reindexing: Reindexing): Promise<string | never> {
     const result = await this._request('post', '_reindex', {
       conflicts: 'proceed',
-      source: {index: reindexing.source, query: reindexing.query},
-      dest: {index: reindexing.target, pipeline: reindexing.pipeline},
-      script: reindexing.painlessScript ? {source: reindexing.painlessScript} : undefined,
+      source: { index: reindexing.source, query: reindexing.query },
+      dest: { index: reindexing.target, pipeline: reindexing.pipeline },
+      script: reindexing.painlessScript ? { source: reindexing.painlessScript } : undefined,
     }, {
       slices: 'auto',
       refresh: false,
@@ -103,7 +106,7 @@ export default abstract class IndexApi {
   }
 
   async createIndex(reindexing: Reindexing): Promise<void | never> {
-    const response = await this._request('put', reindexing.target, {mappings: reindexing.mapping}).catch((err: unknown) => {
+    const response = await this._request('put', reindexing.target, { mappings: reindexing.mapping }).catch((err: unknown) => {
       const error = toIndexResponseError(err)
 
       if (isErrorOfType(error, 'resource_already_exists_exception')) {
@@ -119,8 +122,8 @@ export default abstract class IndexApi {
   async updateAlias(reindexing: Reindexing): Promise<void | never> {
     const response = await this._request('post', '_aliases', {
       actions: [
-        {remove: {index: reindexing.source, alias: reindexing.alias}},
-        {add: {index: reindexing.target, alias: reindexing.alias}},
+        { remove: { index: reindexing.source, alias: reindexing.alias } },
+        { add: { index: reindexing.target, alias: reindexing.alias } },
       ],
     }) as { acknowledged: boolean }
 

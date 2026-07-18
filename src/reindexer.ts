@@ -1,11 +1,11 @@
-import Repository, {InitialReindexing, Reindexing, Stage} from "./repository";
-import IndexApi, {TaskResponse} from "./index-api";
-import PostSynchronizer from "./post-synchronizer";
-import Locker from "./locker";
-import assert from "assert";
-import {toISOString} from "./utils/date";
-import {doWhilst, waitFor} from "./utils/async";
-import {identity} from "./utils/functions";
+import Repository, { InitialReindexing, Reindexing, Stage } from './repository'
+import IndexApi, { TaskResponse } from './index-api'
+import PostSynchronizer from './post-synchronizer'
+import Locker from './locker'
+import assert from 'assert'
+import { toISOString } from './utils/date'
+import { doWhilst, waitFor } from './utils/async'
+import { identity } from './utils/functions'
 
 class ReindexingNotResumableError extends Error {
 }
@@ -110,7 +110,6 @@ export default class Reindexer {
 
     await this.repository.setStage(stage)
   }
-
 
   private async setLastSyncedDate(reindexing: Reindexing, date: Date, taskId?: string): Promise<void> {
     reindexing.lastSyncedDate = toISOString(date)

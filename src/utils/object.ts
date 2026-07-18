@@ -12,7 +12,7 @@ export const pick = <T extends Record<string, unknown>, K extends keyof T>(objec
 
 export const omitBy = <T extends Record<string, unknown>>(
   object: T,
-  predicate: (value: T[keyof T], key: keyof T) => boolean = isNil
+  predicate: (value: T[keyof T], key: keyof T) => boolean = isNil,
 ): Partial<T> => {
   const result: Partial<T> = {}
 
