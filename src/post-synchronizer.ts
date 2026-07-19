@@ -8,7 +8,7 @@ export default abstract class PostSynchronizer {
    * number of documents changed within the sync overlap window, otherwise the
    * loop will never converge.
    */
-  public ACCEPTABLE_BACKLOG = 500
+  public ACCEPTABLE_BACKLOG: number = 500
 
   public backlogIsAcceptable(syncedCount: number) {
     assert(typeof (syncedCount as unknown) === 'number', 'syncedCount should be a number')
@@ -16,9 +16,9 @@ export default abstract class PostSynchronizer {
     return syncedCount <= this.ACCEPTABLE_BACKLOG
   }
 
-  public sync(reindexing: Reindexing): Promise<number> {
+  public sync(reindexing: Required<Reindexing>): Promise<number> {
     return this._sync(reindexing)
   }
 
-  protected abstract _sync(reindexing: Reindexing): Promise<number>
+  protected abstract _sync(reindexing: Required<Reindexing>): Promise<number>
 }

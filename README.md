@@ -165,12 +165,12 @@ class OrdersSynchronizer extends PostSynchronizer {
   // stop catching up once a sync writes 1000 docs or fewer (default: 500)
   public ACCEPTABLE_BACKLOG = 1000
 
-  protected async _sync(reindexing: Reindexing): Promise<number> {
+  // _sync always runs after INITIAL_REINDEXING, so taskId/lastSyncedDate are
+  // guaranteed set - the engine calls it with Required<Reindexing>.
+  protected async _sync(reindexing: Required<Reindexing>): Promise<number> {
     // Go back a little to cover clock differences and in-flight writes.
     // Re-reading is free because indexing is an upsert by id.
-    // lastSyncedDate is optional on the type, but always set by the time _sync
-    // runs - MANUAL_INDEXING/FINAL_MANUAL_INDEXING always follow INITIAL_REINDEXING.
-    const since = new Date(new Date(reindexing.lastSyncedDate!).getTime() - 60_000)
+    const since = new Date(new Date(reindexing.lastSyncedDate).getTime() - 60_000)
 
     const rows = await db.query('SELECT * FROM orders WHERE updated_at > $1', [since])
 
@@ -241,7 +241,7 @@ Everything below is importable directly from `'reindexly'`.
 
 | Export | Description |
 |--------|-------------|
-| `Reindexing` | Full persisted record: `InitialReindexing` plus the progress fields (`stage`, `taskId?`, `lastSyncedDate?`). What `Repository`'s hooks and `PostSynchronizer._sync` receive. |
+| `Reindexing` | Full persisted record: `InitialReindexing` plus the progress fields (`stage`, `taskId?`, `lastSyncedDate?`). What `Repository`'s hooks receive; `PostSynchronizer._sync` receives `Required<Reindexing>` - `taskId`/`lastSyncedDate` are always set by the time it runs. |
 | `InitialReindexing` | The input you pass to `reindexer.reindex(...)` - `alias`, `source`, `target`, `mapping`, `query`, `painlessScript`, `pipeline`. |
 | `HttpMethod` | `'get' \| 'post' \| 'put'` - the method type `IndexApi#_request` receives. |
 | `TaskResponse` | Shape of a `_tasks/{id}` response, as returned by `IndexApi#getTask`. |
@@ -308,7 +308,7 @@ Statics: `IndexApi.Errors` (`IndexAlreadyExistsError`, `ReindexingError`, `Index
 
 ### `PostSynchronizer` (abstract)
 
-- `_sync(reindexing: Reindexing) → Promise<number>` - write documents changed since `reindexing.lastSyncedDate` into `reindexing.target`; return the count.
+- `_sync(reindexing: Required<Reindexing>) → Promise<number>` - write documents changed since `reindexing.lastSyncedDate` into `reindexing.target`; return the count.
 - `ACCEPTABLE_BACKLOG` (default `500`) - the catch-up loop stops once a sync writes this many documents or fewer. Override per instance to tune.
 
 ---

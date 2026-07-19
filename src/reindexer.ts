@@ -98,7 +98,7 @@ export default class Reindexer {
   private async postSync(reindexing: Reindexing): Promise<number> {
     const startDate = new Date()
 
-    const syncedCount = await this.postSynchronizer.sync(reindexing)
+    const syncedCount = await this.postSynchronizer.sync(reindexing as Required<Reindexing>)
 
     await this.setLastSyncedDate(reindexing, startDate)
 
