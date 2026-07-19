@@ -202,11 +202,10 @@ const input: InitialReindexing = {
     },
   },
 
-  // query, painlessScript and pipeline are currently required fields on
-  // InitialReindexing - pass empty defaults if you don't need them:
-  query         : {},                    // reindex only a subset
-  painlessScript: '',                    // transform during _reindex
-  pipeline      : '',                    // ingest pipeline
+  // optional:
+  // query         : { term: { country: 'AE' } }, // reindex only a subset
+  // painlessScript: 'ctx._source.x = 1',          // transform during _reindex
+  // pipeline      : 'my-ingest-pipeline',
 }
 
 await reindexer.reindex(input)
@@ -273,14 +272,12 @@ Runs (or resumes) a reindex. You pass the input fields; the engine fills in and 
 | `source` | `string` | ✅ | The index currently behind the alias. |
 | `target` | `string` | ✅ | The new index to build. |
 | `mapping` | `object` | ✅ | The mapping for the new index. |
-| `query` | `object` | ✅* | Reindex only a subset. Pass `{}` if unused. |
-| `painlessScript` | `string` | ✅* | Painless transform applied during `_reindex`. Pass `''` if unused - falsy values are ignored. |
-| `pipeline` | `string` | ✅* | Ingest pipeline for the `_reindex`. Pass `''` if unused. |
+| `query` | `object` | - | Reindex only a subset. |
+| `painlessScript` | `string` | - | Painless transform applied during `_reindex`. |
+| `pipeline` | `string` | - | Ingest pipeline for the `_reindex`. |
 | `stage` | `Stage` | auto | Current state-machine stage; a resumed run continues from here. |
 | `taskId` | `string` | auto | Id of the async `_reindex` task, persisted so a resumed run re-attaches instead of re-copying. |
 | `lastSyncedDate` | `ISODateString` | auto | ISO timestamp checkpoint; the next catch-up reads source rows changed after it. |
-
-\* `query`/`painlessScript`/`pipeline` are non-optional on the `InitialReindexing` type today, even though they're behaviorally optional (falsy values are skipped internally) - pass an empty default if you don't need them.
 
 #### `Reindexer.Errors.ReindexingNotResumableError`
 

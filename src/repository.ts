@@ -18,9 +18,9 @@ export type InitialReindexing = {
   source: string
   target: string
   mapping: object
-  painlessScript: string
-  pipeline: string
-  query: object
+  painlessScript?: string
+  pipeline?: string
+  query?: object
 }
 
 export type ReindexingProgress = {
