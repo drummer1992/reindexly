@@ -165,8 +165,6 @@ class OrdersSynchronizer extends PostSynchronizer {
   // stop catching up once a sync writes 1000 docs or fewer (default: 500)
   public ACCEPTABLE_BACKLOG = 1000
 
-  // _sync always runs after INITIAL_REINDEXING, so taskId/lastSyncedDate are
-  // guaranteed set - the engine calls it with Required<Reindexing>.
   protected async _sync(reindexing: Required<Reindexing>): Promise<number> {
     // Go back a little to cover clock differences and in-flight writes.
     // Re-reading is free because indexing is an upsert by id.
