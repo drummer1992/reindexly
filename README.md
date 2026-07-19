@@ -63,7 +63,7 @@ yarn add reindexly
 
 **Requirements:** Node.js 18 or newer, and an Elasticsearch- or OpenSearch-compatible cluster. The built-in `IndexApi` uses the shared `_reindex` / `_tasks` / `_aliases` REST API, so it works with Elasticsearch 7/8, OpenSearch 1/2/3, and the AWS managed versions.
 
-TypeScript types are included - you do not need a separate `@types` package.
+reindexly is written in TypeScript. The published types are compiled straight from the source (not inferred from JSDoc), so what you see in your editor is exactly what the library implements - no separate `@types` package needed.
 
 ---
 
@@ -71,7 +71,7 @@ TypeScript types are included - you do not need a separate `@types` package.
 
 | Port | You implement | What it does |
 |------|---------------|--------------|
-| **`IndexApi`** | `_request(method, path, body, query)` | Sends HTTP requests to your cluster. The class builds every `_reindex`/`_tasks`/`_aliases` request and reads cluster errors; you only send the request and return the response. |
+| **`IndexApi`** | `_request(method, path, body, query)` | Sends HTTP requests to your cluster. `method` is typed as `HttpMethod` (`'get' \| 'post' \| 'put'`). The class builds every `_reindex`/`_tasks`/`_aliases` request and reads cluster errors; you only send the request and return the response. On failure, throw anything shaped like `IndexApiErrorLike` (`{ message, status, body }`) - or just throw the ready-made `IndexApi.Errors.IndexApiError`. |
 | **`Repository`** | `_init`, `_update`, `_acquire`, `_release`, `_getConfig` | Saves the engine's progress and provides a single-writer lock. **`_acquire` must be atomic** (compare-and-set) - it is the lock that keeps reindexes one at a time. The engine takes the lock first, so `_init`/`_update` just persist (return nothing; throw on failure). |
 | **`PostSynchronizer`** | `_sync(reindexing)` | Reads rows changed since the last checkpoint from your database and writes them into the new index. Returns how many it wrote. |
 
@@ -81,24 +81,29 @@ TypeScript types are included - you do not need a separate `@types` package.
 
 ### 1. Talk to the cluster - `IndexApi`
 
-```js
-const axios = require('axios')
-const { IndexApi } = require('reindexly')
+```ts
+import axios from 'axios'
+import { IndexApi, HttpMethod } from 'reindexly'
 
 const client = axios.create({
   baseURL: process.env.OPENSEARCH_URL,
-  auth   : { username: process.env.OPENSEARCH_USER, password: process.env.OPENSEARCH_PASSWORD },
+  auth   : { username: process.env.OPENSEARCH_USER!, password: process.env.OPENSEARCH_PASSWORD! },
 })
 
 class AxiosIndexApi extends IndexApi {
-  async _request(method, path, body, query) {
+  protected async _request(method: HttpMethod, path: string, body?: object, query?: object): Promise<unknown> {
     try {
       const { data } = await client.request({ method, url: path, params: query, data: body })
 
       return data
     } catch (err) {
-      // pass the cluster's status and error body to the base class
-      throw Object.assign(err, { status: err.response?.status, body: err.response?.data })
+      if (axios.isAxiosError(err) && err.response) {
+        // ready-made error class - IndexApi classifies IndexApiErrorLike-shaped
+        // errors into IndexAlreadyExistsError/ReindexingError for you
+        throw new IndexApi.Errors.IndexApiError(err.message, err.response.status, err.response.data)
+      }
+
+      throw err
     }
   }
 }
@@ -108,9 +113,9 @@ class AxiosIndexApi extends IndexApi {
 
 This example uses Redis. `_init`/`_update` persist state and return nothing - throw your own error if a write fails. The engine itself checks whether a reindex is already in progress (it reads `_getConfig` under the lock), so `_init` just writes. The only part that must be atomic is the lock: `SET ... NX` lets just one worker win.
 
-```js
-const { createClient } = require('redis')
-const { Repository } = require('reindexly')
+```ts
+import { createClient } from 'redis'
+import { Repository, Reindexing, ISODateString } from 'reindexly'
 
 const redis = createClient()
 const STATE = 'reindex:state'
@@ -119,12 +124,12 @@ const LOCK  = 'reindex:lock'
 class RedisRepository extends Repository {
   // Persist the new reindexing record. The engine has already verified - under
   // the lock - that no active reindexing exists, so this just writes.
-  async _init(reindexing) {
+  protected async _init(reindexing: Reindexing): Promise<void> {
     await redis.set(STATE, JSON.stringify(reindexing))
   }
 
   // Merge a partial change into the saved state. Throw your own error on failure.
-  async _update(changes) {
+  protected async _update(changes: Partial<Reindexing>): Promise<void> {
     const stored = await this._getConfig()
 
     if (!stored) {
@@ -134,18 +139,18 @@ class RedisRepository extends Repository {
     await redis.set(STATE, JSON.stringify({ ...stored, ...changes }))
   }
 
-  async _getConfig() {
+  protected async _getConfig(): Promise<Reindexing | null> {
     const raw = await redis.get(STATE)
 
     return raw ? JSON.parse(raw) : null
   }
 
   // SET ... NX is an atomic compare-and-set: only one worker can take the lock.
-  async _acquire(date) {
+  protected async _acquire(date: ISODateString): Promise<boolean> {
     return await redis.set(LOCK, date, { NX: true }) === 'OK'
   }
 
-  async _release() {
+  protected async _release(): Promise<void> {
     await redis.del(LOCK)
   }
 }
@@ -153,19 +158,21 @@ class RedisRepository extends Repository {
 
 ### 3. Copy the changes - `PostSynchronizer`
 
-```js
-const { PostSynchronizer } = require('reindexly')
+```ts
+import { PostSynchronizer, Reindexing } from 'reindexly'
 
 class OrdersSynchronizer extends PostSynchronizer {
   // stop catching up once a sync writes 1000 docs or fewer (default: 500)
-  ACCEPTABLE_BACKLOG = 1000
+  public ACCEPTABLE_BACKLOG = 1000
 
-  async _sync(reindexing) {
+  protected async _sync(reindexing: Reindexing): Promise<number> {
     // Go back a little to cover clock differences and in-flight writes.
     // Re-reading is free because indexing is an upsert by id.
-    const since = new Date(new Date(reindexing.lastSyncedDate).getTime() - 60_000)
+    // lastSyncedDate is optional on the type, but always set by the time _sync
+    // runs - MANUAL_INDEXING/FINAL_MANUAL_INDEXING always follow INITIAL_REINDEXING.
+    const since = new Date(new Date(reindexing.lastSyncedDate!).getTime() - 60_000)
 
-    const rows = await db.query(`SELECT * FROM orders WHERE updated_at > $1`, [since])
+    const rows = await db.query('SELECT * FROM orders WHERE updated_at > $1', [since])
 
     await bulkUpsert(reindexing.target, rows) // write into the NEW index, keyed by document id
 
@@ -176,8 +183,8 @@ class OrdersSynchronizer extends PostSynchronizer {
 
 ### 4. Run it
 
-```js
-const { Reindexer } = require('reindexly')
+```ts
+import { Reindexer, InitialReindexing } from 'reindexly'
 
 const reindexer = new Reindexer(
   new RedisRepository(),
@@ -185,7 +192,7 @@ const reindexer = new Reindexer(
   new OrdersSynchronizer(),
 )
 
-await reindexer.reindex({
+const input: InitialReindexing = {
   alias  : 'orders',     // the alias clients read/write through
   source : 'orders_v1',  // the index currently behind the alias
   target : 'orders_v2',  // the new index to build
@@ -197,14 +204,58 @@ await reindexer.reindex({
     },
   },
 
-  // optional:
-  // query         : { term: { country: 'AE' } }, // reindex only a subset
-  // painlessScript: 'ctx._source.x = 1',          // transform during _reindex
-  // pipeline      : 'my-ingest-pipeline',
-})
+  // query, painlessScript and pipeline are currently required fields on
+  // InitialReindexing - pass empty defaults if you don't need them:
+  query         : {},                    // reindex only a subset
+  painlessScript: '',                    // transform during _reindex
+  pipeline      : '',                    // ingest pipeline
+}
+
+await reindexer.reindex(input)
 ```
 
 If the process stops at any point, **call `reindexer.reindex(...)` again with the same config**. It continues from the last saved step. You usually work out `source` and `target` yourself first (for example, read the alias and increase the version number).
+
+---
+
+## Exports
+
+Everything below is importable directly from `'reindexly'`.
+
+**Classes**
+
+| Export | Description |
+|--------|-------------|
+| `IndexApi` | Abstract - implement `_request`. See [API](#api). |
+| `Repository` | Abstract - implement `_init`/`_update`/`_acquire`/`_release`/`_getConfig`. |
+| `PostSynchronizer` | Abstract - implement `_sync`. |
+| `Reindexer` | Concrete - the engine. `new Reindexer(repository, indexApi, postSynchronizer)`. |
+
+**Values**
+
+| Export | Description |
+|--------|-------------|
+| `Stage` | Enum of state-machine stages (`INDEX_CREATION`, `INITIAL_REINDEXING`, `MANUAL_INDEXING`, `ALIAS_UPDATE`, `FINAL_MANUAL_INDEXING`, `REINDEXING_COMPLETED`, `REINDEXING_FAILED`). Also reachable as `Repository.Stage` - same object. |
+
+**Types**
+
+| Export | Description |
+|--------|-------------|
+| `Reindexing` | Full persisted record: `InitialReindexing` plus the progress fields (`stage`, `taskId?`, `lastSyncedDate?`). What `Repository`'s hooks and `PostSynchronizer._sync` receive. |
+| `InitialReindexing` | The input you pass to `reindexer.reindex(...)` - `alias`, `source`, `target`, `mapping`, `query`, `painlessScript`, `pipeline`. |
+| `HttpMethod` | `'get' \| 'post' \| 'put'` - the method type `IndexApi#_request` receives. |
+| `TaskResponse` | Shape of a `_tasks/{id}` response, as returned by `IndexApi#getTask`. |
+| `IndexApiErrorLike` | `{ message, status, body }` - the shape `_request` must throw on failure for `IndexApi` to classify cluster errors. `IndexApi.Errors.IndexApiError` implements it, but any object with this shape works. |
+| `ISODateString` | Branded `string` type for the ISO timestamps stored in `Reindexing.lastSyncedDate` and passed to `Repository#_acquire`. |
+
+**Nested (reached through the classes above, not top-level exports)**
+
+| Export | Description |
+|--------|-------------|
+| `IndexApi.Errors.IndexAlreadyExistsError` | Thrown internally when `createIndex` resumes into an already-existing target index; swallowed by the engine (idempotent resume). |
+| `IndexApi.Errors.ReindexingError` | Thrown internally when a reindex task is lost or completes with failures. |
+| `IndexApi.Errors.IndexApiError` | The ready-made class implementing `IndexApiErrorLike` - throw `new IndexApi.Errors.IndexApiError(message, status, body)` from your `_request` implementation. |
+| `Reindexer.Errors.ReindexingNotResumableError` | Thrown (and the run marked `FAILED`) when a failure cannot be resumed. |
 
 ---
 
@@ -214,7 +265,7 @@ If the process stops at any point, **call `reindexer.reindex(...)` again with th
 
 Creates the engine. Each argument must be an instance of the matching base class (this is checked).
 
-#### `reindexer.reindex(config) → Promise<void>`
+#### `reindexer.reindex(config: InitialReindexing) → Promise<void>`
 
 Runs (or resumes) a reindex. You pass the input fields; the engine fills in and persists the `auto` ones as it advances through the stages (these are what you read back from `_getConfig`):
 
@@ -224,12 +275,14 @@ Runs (or resumes) a reindex. You pass the input fields; the engine fills in and 
 | `source` | `string` | ✅ | The index currently behind the alias. |
 | `target` | `string` | ✅ | The new index to build. |
 | `mapping` | `object` | ✅ | The mapping for the new index. |
-| `query` | `object` | - | Reindex only a subset. |
-| `painlessScript` | `string` | - | Painless transform applied during `_reindex`. |
-| `pipeline` | `string` | - | Ingest pipeline for the `_reindex`. |
-| `stage` | `string` | auto | Current state-machine stage (one of `Repository.Stage`); a resumed run continues from here. |
+| `query` | `object` | ✅* | Reindex only a subset. Pass `{}` if unused. |
+| `painlessScript` | `string` | ✅* | Painless transform applied during `_reindex`. Pass `''` if unused - falsy values are ignored. |
+| `pipeline` | `string` | ✅* | Ingest pipeline for the `_reindex`. Pass `''` if unused. |
+| `stage` | `Stage` | auto | Current state-machine stage; a resumed run continues from here. |
 | `taskId` | `string` | auto | Id of the async `_reindex` task, persisted so a resumed run re-attaches instead of re-copying. |
-| `lastSyncedDate` | `string` | auto | ISO timestamp checkpoint; the next catch-up reads source rows changed after it. |
+| `lastSyncedDate` | `ISODateString` | auto | ISO timestamp checkpoint; the next catch-up reads source rows changed after it. |
+
+\* `query`/`painlessScript`/`pipeline` are non-optional on the `InitialReindexing` type today, even though they're behaviorally optional (falsy values are skipped internally) - pass an empty default if you don't need them.
 
 #### `Reindexer.Errors.ReindexingNotResumableError`
 
@@ -239,23 +292,23 @@ Thrown (and the run marked `FAILED`) when a failure cannot be resumed.
 
 Implement the `_`-prefixed hooks; the public methods are provided for you.
 
-- `_init(reindexing) → Promise<void>` - persist the new reindexing record. Throw on failure.
-- `_update(changes) → Promise<void>` - merge a partial change into the saved state. Throw on failure.
-- `_acquire(date) → Promise<boolean>` - atomically take the lock.
+- `_init(reindexing: Reindexing) → Promise<void>` - persist the new reindexing record. Throw on failure.
+- `_update(changes: Partial<Reindexing>) → Promise<void>` - merge a partial change into the saved state. Throw on failure.
+- `_acquire(date: ISODateString) → Promise<boolean>` - atomically take the lock.
 - `_release() → Promise<void>`
-- `_getConfig() → Promise<object|null>` - the saved state, or `null`.
+- `_getConfig() → Promise<Reindexing | null>` - the saved state, or `null`.
 
-Statics: `Repository.Stage` (the stage values).
+Statics: `Repository.Stage` (same enum as the top-level `Stage` export).
 
 ### `IndexApi` (abstract)
 
-- `_request(method, path, body, query) → Promise<any>` - the only thing you implement. `method` is `'get' | 'post' | 'put'`. On a non-2xx response, throw an error that carries `status` and `body` (the cluster's error JSON).
+- `_request(method: HttpMethod, path: string, body?: object, query?: object) → Promise<unknown>` - the only thing you implement. On a non-2xx response, throw an error shaped like `IndexApiErrorLike` (`message`, `status`, the cluster's error `body`) - typically `new IndexApi.Errors.IndexApiError(message, status, body)`.
 
-Statics: `IndexApi.Errors` (`IndexAlreadyExistsError`, `ReindexingError`).
+Statics: `IndexApi.Errors` (`IndexAlreadyExistsError`, `ReindexingError`, `IndexApiError`).
 
 ### `PostSynchronizer` (abstract)
 
-- `_sync(reindexing) → Promise<number>` - write documents changed since `reindexing.lastSyncedDate` into `reindexing.target`; return the count.
+- `_sync(reindexing: Reindexing) → Promise<number>` - write documents changed since `reindexing.lastSyncedDate` into `reindexing.target`; return the count.
 - `ACCEPTABLE_BACKLOG` (default `500`) - the catch-up loop stops once a sync writes this many documents or fewer. Override per instance to tune.
 
 ---

@@ -31,18 +31,30 @@ export type ReindexingResponse = {
   task: string
 }
 
-export type IndexResponseError = {
+export interface IndexApiErrorLike {
   message: any
   status: number
   body: any
 }
 
-const toIndexResponseError = (err: unknown): IndexResponseError | never => {
-  const error = err as IndexResponseError
+class IndexApiError extends Error implements IndexApiErrorLike {
+  status: number
+  body: any
+
+  constructor(message: string, status: number, body: any) {
+    super(message)
+    this.name = 'IndexApiError'
+    this.status = status
+    this.body = body
+  }
+}
+
+const toIndexApiErrorLike = (err: unknown): IndexApiErrorLike | never => {
+  const error = err as IndexApiErrorLike
 
   if (!error.message || !error.status || !error.body) {
     throw new Error(
-      'Unexpected index api response error format. Please make sure it matches the IndexResponseError type. '
+      'Unexpected index api response error format. Please make sure it matches the IndexApiErrorLike type. '
       + JSON.stringify((err as Error).stack),
     )
   }
@@ -56,14 +68,15 @@ class ReindexingError extends Error {
 class IndexAlreadyExistsError extends Error {
 }
 
-const isErrorOfType = (err: IndexResponseError, type: string) => {
+const isErrorOfType = (err: IndexApiErrorLike, type: string) => {
   return err.body?.error?.type === type
 }
 
 export default abstract class IndexApi {
-  static Errors = {
+  public static Errors = {
     IndexAlreadyExistsError,
     ReindexingError,
+    IndexApiError,
   }
 
   public async reindex(reindexing: Reindexing): Promise<string | never> {
@@ -83,9 +96,9 @@ export default abstract class IndexApi {
     return result.task
   }
 
-  async getTask(taskId: string): Promise<TaskResponse | never> {
+  public async getTask(taskId: string): Promise<TaskResponse | never> {
     const response = await this._request('get', `_tasks/${taskId}`).catch((err: unknown) => {
-      const error = toIndexResponseError(err)
+      const error = toIndexApiErrorLike(err)
 
       if (isErrorOfType(error, 'resource_not_found_exception') || error.status === 404) {
         throw new IndexApi.Errors.ReindexingError(`Task with id ${taskId} not found. Original: ${error.message}`)
@@ -105,21 +118,21 @@ export default abstract class IndexApi {
     return response
   }
 
-  async createIndex(reindexing: Reindexing): Promise<void | never> {
+  public async createIndex(reindexing: Reindexing): Promise<void | never> {
     const response = await this._request('put', reindexing.target, { mappings: reindexing.mapping }).catch((err: unknown) => {
-      const error = toIndexResponseError(err)
+      const error: IndexApiErrorLike = toIndexApiErrorLike(err)
 
       if (isErrorOfType(error, 'resource_already_exists_exception')) {
         throw new IndexApi.Errors.IndexAlreadyExistsError(`Index already exists. Original: ${error.message}`)
       }
 
-      throw err
+      throw error
     }) as { acknowledged: boolean }
 
     assert(response?.acknowledged, `Index was not created. ${JSON.stringify(response)}`)
   }
 
-  async updateAlias(reindexing: Reindexing): Promise<void | never> {
+  public async updateAlias(reindexing: Reindexing): Promise<void | never> {
     const response = await this._request('post', '_aliases', {
       actions: [
         { remove: { index: reindexing.source, alias: reindexing.alias } },

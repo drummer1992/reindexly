@@ -13,7 +13,7 @@ class ReindexingNotResumableError extends Error {
 export default class Reindexer {
   private locker: Locker
 
-  static Errors = {
+  public static Errors = {
     ReindexingNotResumableError,
   }
 

@@ -6,7 +6,7 @@ export default class Locker {
     assert((repository as unknown) instanceof Repository, 'repository should be an instance of Repository')
   }
 
-  async runWithLock<T>(fn: () => Promise<T>, busyMessage: string): Promise<T | never> {
+  public async runWithLock<T>(fn: () => Promise<T>, busyMessage: string): Promise<T | never> {
     let acquired
 
     try {

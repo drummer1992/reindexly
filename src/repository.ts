@@ -32,7 +32,7 @@ export type ReindexingProgress = {
 export type Reindexing = InitialReindexing & ReindexingProgress
 
 export default abstract class Repository {
-  static Stage = Stage
+  public static Stage = Stage
 
   public async init(reindexing: InitialReindexing): Promise<Reindexing> {
     this.assertInitialReindexing(reindexing)
